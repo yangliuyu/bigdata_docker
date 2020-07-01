@@ -1,0 +1,210 @@
+################################################################################
+# Copyright 2019 Ververica GmbH
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
+
+# This file defines the default environment for Flink's SQL Client.
+# Defaults might be overwritten by a session specific environment.
+
+
+#==============================================================================
+# Table Sources
+#==============================================================================
+
+# Define table sources here. See the Table API & SQL documentation for details.
+
+catalogs:
+   - name: hive
+     type: hive
+     property-version: 1
+     hive-version: 2.3.2
+     hive-conf-dir: /opt/hive-conf
+
+tables:
+  - name: prod_rates_history
+    type: source-table
+    update-mode: append
+    schema:
+      - name: rs_timestamp
+        data-type: TIMESTAMP(3)
+        rowtime:
+          timestamps:
+            type: from-field
+            from: rs_raw_timestamp
+          watermarks:
+            type: "periodic-bounded"
+            delay: 5000
+      - name: rs_symbol
+        data-type: STRING
+      - name: rs_rate
+        data-type: DOUBLE
+    connector:
+      type: kafka
+      version: universal
+      topic: rates
+      startup-mode: earliest-offset
+      properties:
+        - key: zookeeper.connect
+          value: not-needed
+        - key: bootstrap.servers
+          value: kafka:9092
+        - key: group.id
+          value: testGroup
+    format:
+      type: csv
+      field-delimiter: '|'
+
+  - name: prod_rates_temporal
+    type: temporal-table
+    history-table: prod_rates_history
+    primary-key: rs_symbol
+    time-attribute: rs_timestamp
+
+  - name: prod_lineitem
+    type: source-table
+    update-mode: append
+    schema:
+      - name: l_orderkey
+        data-type: INTEGER
+      - name: l_partkey
+        data-type: INTEGER
+      - name: l_suppkey
+        data-type: INTEGER
+      - name: l_linenumber
+        data-type: INTEGER
+      - name: l_quantity
+        data-type: DOUBLE
+      - name: l_extendedprice
+        data-type: DOUBLE
+      - name: l_discount
+        data-type: DOUBLE
+      - name: l_tax
+        data-type: DOUBLE
+      - name: l_currency
+        data-type: STRING
+      - name: l_returnflag
+        data-type: STRING
+      - name: l_linestatus
+        data-type: STRING
+      - name: l_ordertime
+        data-type: TIMESTAMP(3)
+        rowtime:
+          timestamps:
+            type: from-field
+            from: l_raw_ordertime
+          watermarks:
+            type: "periodic-bounded"
+            delay: 5000
+      - name: l_shipinstruct
+        data-type: STRING
+      - name: l_shipmode
+        data-type: STRING
+      - name: l_comment
+        data-type: STRING
+      - name: l_proctime
+        data-type: TIMESTAMP(3)
+        proctime: true
+    connector:
+      type: kafka
+      version: universal
+      topic: lineitem
+      startup-mode: 'earliest-offset'
+      properties:
+        - key: zookeeper.connect
+          value: not-needed
+        - key: bootstrap.servers
+          value: kafka:9092
+        - key: group.id
+          value: testGroup
+    format:
+      type: csv
+      field-delimiter: '|'
+
+  - name: prod_orders
+    type: source-table
+    update-mode: append
+    schema:
+      - name: o_orderkey
+        data-type: INTEGER
+      - name: o_custkey
+        data-type: INTEGER
+      - name: o_orderstatus
+        data-type: STRING
+      - name: o_totalprice
+        data-type: DOUBLE
+      - name: o_currency
+        data-type: STRING
+      - name: o_ordertime
+        data-type: TIMESTAMP(3)
+        rowtime:
+          timestamps:
+            type: from-field
+            from: O_RAW_ORDERTIME
+          watermarks:
+            type: "periodic-bounded"
+            delay: 5000
+      - name: o_orderpriority
+        data-type: STRING
+      - name: o_clerk
+        data-type: STRING
+      - name: o_shippriority
+        data-type: INTEGER
+      - name: o_comment
+        data-type: STRING
+    connector:
+      type: kafka
+      version: universal
+      topic: orders
+      startup-mode: 'earliest-offset'
+      properties:
+        - key: zookeeper.connect
+          value: not-needed
+        - key: bootstrap.servers
+          value: kafka:9092
+        - key: group.id
+          value: testGroup
+    format:
+      type: csv
+      field-delimiter: '|'
+
+#==============================================================================
+# Execution properties
+#==============================================================================
+
+# Execution properties allow for changing the behavior of a table program.
+
+execution:
+  planner: blink               # using the Blink planner
+  type: streaming              # 'batch' or 'streaming' execution
+  result-mode: table           # 'changelog' or 'table' presentation of results
+  parallelism: 1               # parallelism of the program
+  max-parallelism: 128         # maximum parallelism
+  min-idle-state-retention: 0  # minimum idle state retention in ms
+  max-idle-state-retention: 0  # maximum idle state retention in ms
+
+#==============================================================================
+# Deployment properties
+#==============================================================================
+
+# Deployment properties allow for describing the cluster to which table
+# programs are submitted to.
+
+deployment:
+  type: standalone             # only the 'standalone' deployment is supported
+  response-timeout: 5000       # general cluster communication timeout in ms
+  gateway-address: ""          # (optional) address from cluster to gateway
+  gateway-port: 0              # (optional) port from cluster to gateway
+
+

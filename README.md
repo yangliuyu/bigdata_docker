@@ -18,7 +18,7 @@
 # 使用方法
 ## [hive](https://github.com/big-data-europe/docker-hive)
 ```
-docker-compose exec hiver-server bash
+docker-compose exec hive-server bash
 /opt/hive/bin/beeline -u jdbc:hive2://localhost:10000
 > CREATE TABLE pokes (foo INT, bar STRING);
 > LOAD DATA LOCAL INPATH '/opt/hive/examples/files/kv1.txt' OVERWRITE INTO TABLE pokes;
@@ -39,4 +39,20 @@ docker-compose -f docker-compose-mysql.yaml exec kafka /opt/kafka/bin/kafka-cons
 docker-compose exec mysql bash -c 'mysql -u $MYSQL_USER -p$MYSQL_PASSWORD inventory'
 UPDATE customers SET first_name='Anne Marie' WHERE id=1004;
 ```
-
+## Kafka
+```
+docker-compose exec kafka kafka-console-consumer.sh --bootstrap-server kafka:9092 --from-beginning --topic orders
+docker-compose exec kafka kafka-console-consumer.sh --bootstrap-server kafka:9092 --from-beginning --topic lineitem
+docker-compose exec kafka kafka-console-consumer.sh --bootstrap-server kafka:9092 --from-beginning --topic rates
+```
+## Flink SQL Client
+```
+docker-compose exec flink-sql-client ./sql-client.sh
+SHOW TABLES;
+DESCRIBE prod_orders;
+SELECT * FROM prod_orders;
+use catalog hive;
+show tables;
+DESCRIBE prod_nation;
+SELECT * FROM prod_nation;
+```

@@ -65,8 +65,12 @@ services:
       - 3306:3306
     environment:
       - MYSQL_ROOT_PASSWORD=debezium
-      - MYSQL_USER=mysqluser
-      - MYSQL_PASSWORD=mysqlpw
+      - MYSQL_USER=sql-demo
+      - MYSQL_PASSWORD=demo-sql
+      - MYSQL_DATABASE=sql-demo
+    volumes:
+      - ./flink/mysql-init:/docker-entrypoint-initdb.d
+      - ./flink/data:/var/lib/mysql-files
   connect:
     image: debezium/connect:1.2
     ports:
@@ -80,6 +84,85 @@ services:
       - CONFIG_STORAGE_TOPIC=my_connect_configs
       - OFFSET_STORAGE_TOPIC=my_connect_offsets
       - STATUS_STORAGE_TOPIC=my_connect_statuses
+
+  # flink
+  flink-sql-client:
+    image: fhueske/flink-sql-demo-client:1-FLINK-1.10-scala_2.11
+    build: flink/client-image
+    depends_on:
+      - kafka
+      - jobmanager
+      - taskmanager
+      - mysql
+      - hive-metastore
+      - minio
+    environment:
+      FLINK_JOBMANAGER_HOST: jobmanager
+      ZOOKEEPER_CONNECT: zookeeper
+      KAFKA_BOOTSTRAP: kafka
+      MYSQL_HOST: mysql
+      METASTORE_HOST: hive-metastore
+      METASTORE_PORT: 9083
+    volumes:
+      - ./flink/flinksql-init:/opt/sql-client/init
+  flink-data-provider:
+    image: fhueske/flink-sql-demo-data:1
+    build: flink/data-image
+    environment:
+      - MC_HOST_minio=http://sql-demo:demo-sql@minio:9000
+      - KAFKA_HOST=kafka:9092
+      - SPEEDUP=10.0
+    volumes:
+      - ./flink/data:/opt/data/kafka
+    #      - flink/data:/opt/data/minio  # all files located in /opt/data/minio are copied into Minio
+    depends_on:
+      - minio
+      - kafka
+  jobmanager:
+    image: fhueske/flink-s3:1.10.0-scala_2.11
+    build: flink/flink-image
+    hostname: "jobmanager"
+    expose:
+      - "6123"
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+  taskmanager:
+    image: fhueske/flink-s3:1.10.0-scala_2.11
+    build: flink/flink-image
+    expose:
+      - "6121"
+      - "6122"
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    links:
+      - jobmanager:jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+  minio:
+    image: minio/minio:latest
+    entrypoint: sh
+    command: -c 'mkdir -p /data/sql-demo && /usr/bin/minio server /data'
+    environment:
+      - MINIO_ACCESS_KEY=sql-demo
+      - MINIO_SECRET_KEY=demo-sql
+    expose:
+      - "9000"
+    ports:
+      - "9000:9000"
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql
+    volumes:
+      - ./grafana/grafana-init/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/grafana-init/dashboard.json:/etc/grafana/dashboard.json
+      - ./grafana/grafana-init/grafana.ini:/etc/grafana/grafana.ini
 
 volumes:
   namenode:
